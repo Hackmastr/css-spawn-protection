@@ -1,5 +1,6 @@
 ﻿using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
+using CounterStrikeSharp.API.Core.Attributes;
 using CounterStrikeSharp.API.Core.Attributes.Registration;
 using CounterStrikeSharp.API.Modules.Commands;
 using CounterStrikeSharp.API.Modules.Timers;
@@ -7,11 +8,12 @@ using Timer = CounterStrikeSharp.API.Modules.Timers.Timer;
 
 namespace CTSpawnProtection;
 
+[MinimumApiVersion(43)]
 public class CTSpawnProtection : BasePlugin, IPluginConfig<CTSpawnProtectionConfig>
 {
     public override string ModuleName => "[CT] Spawn protection.";
     public override string ModuleAuthor => "livevilog";
-    public override string ModuleVersion => "0.3.0";
+    public override string ModuleVersion => "0.3.1";
 
     public CTSpawnProtectionConfig Config { get; set; } = new ();
     
