@@ -1,19 +1,19 @@
 ﻿using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Core.Attributes.Registration;
+using CounterStrikeSharp.API.Modules.Commands;
 using CounterStrikeSharp.API.Modules.Timers;
 using Timer = CounterStrikeSharp.API.Modules.Timers.Timer;
 
 namespace CTSpawnProtection;
 
-public class CTSpawnProtection : BasePlugin
+public class CTSpawnProtection : BasePlugin, IPluginConfig<CTSpawnProtectionConfig>
 {
     public override string ModuleName => "[CT] Spawn protection.";
     public override string ModuleAuthor => "livevilog";
-    public override string ModuleVersion => "0.2.0";
+    public override string ModuleVersion => "0.3.0";
 
-    private const int PreventiveHealth = 100; // Cuanta vida necesitamos para mantener el jugador vivo
-    private const int ProtectionDuration = 15 + 1; // Duracion protection spawn en segundos + 1
+    public CTSpawnProtectionConfig Config { get; set; } = new ();
     
     private readonly Dictionary<CCSPlayerController, bool> _protectedList = new ();
     private readonly Dictionary<CCSPlayerController, DateTime> _spawnTimings = new ();
@@ -57,7 +57,7 @@ public class CTSpawnProtection : BasePlugin
             if (!_spawnTimings.TryGetValue(controller, out var time)) 
                 return;
             
-            if ((DateTime.Now - time).Seconds > ProtectionDuration && _protectedList[controller])
+            if ((DateTime.Now - time).Seconds > Config.ProtectionDuration && _protectedList[controller])
             {
                 _protectedList[controller] = false;
                 controller.PrintToChat("You are no longer spawn protected.");
@@ -79,7 +79,7 @@ public class CTSpawnProtection : BasePlugin
     {
         if (!_protectedList[@event.Userid]) return HookResult.Continue;
         
-        @event.Userid.PlayerPawn.Value.Health = PreventiveHealth;
+        @event.Userid.PlayerPawn.Value.Health = Config.PreventiveHealth;
         
         return HookResult.Changed;
     }
@@ -98,5 +98,10 @@ public class CTSpawnProtection : BasePlugin
         _protectedList[@event.Userid] = false;
         
         return HookResult.Continue;
+    }
+
+    public void OnConfigParsed(CTSpawnProtectionConfig config)
+    {
+        this.Config = config;
     }
 }
