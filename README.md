@@ -1,2 +1,2 @@
 ## Requirements
-CSSharp >= 1.0.30
+CSSharp >= 1.0.43
