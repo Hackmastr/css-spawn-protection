@@ -5,12 +5,16 @@ namespace CTSpawnProtection;
 
 public class CTSpawnProtectionConfig : BasePluginConfig
 {
-    public override int Version { get; set; } = 1;
+    public override int Version { get; set; } = 2;
 
     [JsonPropertyName("PreventiveHealth")]
     public int PreventiveHealth { get; set; } = 100;
     
     [JsonPropertyName("ProtectionDuration")]
     public int ProtectionDuration { get; set; } = 15;
+
+    [JsonPropertyName("ProtectionEndMessage")]
+    public string ProtectionEndMessage { get; set; } = 
+        "\v[CTSpawnProtection]\u0001 Your spawn protection has ended.";
 }
 

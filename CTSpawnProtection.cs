@@ -13,7 +13,7 @@ public class CTSpawnProtection : BasePlugin, IPluginConfig<CTSpawnProtectionConf
 {
     public override string ModuleName => "[CT] Spawn protection.";
     public override string ModuleAuthor => "livevilog";
-    public override string ModuleVersion => "0.3.1";
+    public override string ModuleVersion => "1.0.0";
 
     public CTSpawnProtectionConfig Config { get; set; } = new ();
     
@@ -21,6 +21,8 @@ public class CTSpawnProtection : BasePlugin, IPluginConfig<CTSpawnProtectionConf
     private readonly Dictionary<CCSPlayerController, DateTime> _spawnTimings = new ();
     
     private Timer? _clearProtectionTimer;
+    
+    private int _protectionDuration = 0;
 
     public override void Load(bool hotReload)
     {
@@ -33,15 +35,6 @@ public class CTSpawnProtection : BasePlugin, IPluginConfig<CTSpawnProtectionConf
         Timers.Add(_clearProtectionTimer);
     }
 
-    private void InitializeLists()
-    {
-        Utilities.GetPlayers().ForEach(controller =>
-        {
-            _protectedList[controller] = false;
-            _spawnTimings[controller] = DateTime.Now;
-        });
-    }
-
     public override void Unload(bool hotReload)
     {
         _clearProtectionTimer!.Kill();
@@ -52,21 +45,37 @@ public class CTSpawnProtection : BasePlugin, IPluginConfig<CTSpawnProtectionConf
         _protectedList.Clear();
     }
 
+    public void OnConfigParsed(CTSpawnProtectionConfig config)
+    {
+        this.Config = config;
+        _protectionDuration = config.ProtectionDuration;
+    }
+
+    private void InitializeLists()
+    {
+        Utilities.GetPlayers().ForEach(controller =>
+        {
+            _protectedList[controller] = false;
+            _spawnTimings[controller] = DateTime.Now;
+        });
+    }
+
     private void ClearProtectionTimer()
     {
         Utilities.GetPlayers().ForEach(controller =>
         {
             if (!_spawnTimings.TryGetValue(controller, out var time)) 
                 return;
-            
-            if ((DateTime.Now - time).Seconds > Config.ProtectionDuration && _protectedList[controller])
+
+            if (_protectedList[controller] && (DateTime.Now - time).Seconds >= _protectionDuration)
             {
                 _protectedList[controller] = false;
-                controller.PrintToChat("You are no longer spawn protected.");
+                controller.PrintToChat($" {Config.ProtectionEndMessage}");
             }
         });
     }
 
+    #region Events 
     [GameEventHandler(HookMode.Post)]
     public HookResult OnPlayerSpawn(EventPlayerSpawn @event, GameEventInfo _)
     {
@@ -101,9 +110,20 @@ public class CTSpawnProtection : BasePlugin, IPluginConfig<CTSpawnProtectionConf
         
         return HookResult.Continue;
     }
-
-    public void OnConfigParsed(CTSpawnProtectionConfig config)
+    #endregion
+    
+    [ConsoleCommand("css_ctspawnprotection_duration", "Change the duration of the spawn protection.")]
+    [CommandHelper(1, "<duration in seconds>", CommandUsage.SERVER_ONLY)]
+    public void UpdateDurationCommand(CCSPlayerController? caller, CommandInfo info)
     {
-        this.Config = config;
+        if (!int.TryParse(info.GetArg(1), out var total) || total == 0)
+        {
+            info.ReplyToCommand("[CTSpawnProtection] Invalid duration.");
+            return;
+        }
+
+        _protectionDuration = total;
+        
+        info.ReplyToCommand($"[CTSpawnProtection] Protection duration changed to {total} seconds.");
     }
 }
