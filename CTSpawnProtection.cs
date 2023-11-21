@@ -4,6 +4,7 @@ using CounterStrikeSharp.API.Core.Attributes;
 using CounterStrikeSharp.API.Core.Attributes.Registration;
 using CounterStrikeSharp.API.Modules.Commands;
 using CounterStrikeSharp.API.Modules.Timers;
+using McMaster.NETCore.Plugins;
 using Timer = CounterStrikeSharp.API.Modules.Timers.Timer;
 
 namespace CTSpawnProtection;
@@ -13,7 +14,7 @@ public class CTSpawnProtection : BasePlugin, IPluginConfig<CTSpawnProtectionConf
 {
     public override string ModuleName => "[CT] Spawn protection.";
     public override string ModuleAuthor => "livevilog";
-    public override string ModuleVersion => "1.0.0";
+    public override string ModuleVersion => "1.1.0";
 
     public CTSpawnProtectionConfig Config { get; set; } = new ();
     
@@ -26,6 +27,11 @@ public class CTSpawnProtection : BasePlugin, IPluginConfig<CTSpawnProtectionConf
 
     public override void Load(bool hotReload)
     {
+        if (Config.Version != 3)
+        {
+            Console.WriteLine("[CTSpawnProtection] Please update your config to version 3.");
+        }
+        
         if (hotReload)
         {
             InitializeLists();
@@ -33,6 +39,11 @@ public class CTSpawnProtection : BasePlugin, IPluginConfig<CTSpawnProtectionConf
         
         _clearProtectionTimer = new Timer(.5f, ClearProtectionTimer, TimerFlags.REPEAT);
         Timers.Add(_clearProtectionTimer);
+
+        if (Config.EnableRoundEndProtection)
+        {
+            RegisterEventHandler<EventRoundEnd>(OnRoundEnd);
+        }
     }
 
     public override void Unload(bool hotReload)
@@ -49,6 +60,17 @@ public class CTSpawnProtection : BasePlugin, IPluginConfig<CTSpawnProtectionConf
     {
         this.Config = config;
         _protectionDuration = config.ProtectionDuration;
+    }
+
+    private HookResult OnRoundEnd(EventRoundEnd @event, GameEventInfo info)
+    {
+        Utilities.GetPlayers().ForEach(controller =>
+        {
+            _protectedList[controller] = true;
+            _spawnTimings[controller] = DateTime.Now;
+        });
+        
+        return HookResult.Continue;
     }
 
     private void InitializeLists()
