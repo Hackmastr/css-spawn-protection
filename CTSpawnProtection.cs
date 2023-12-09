@@ -3,23 +3,24 @@ using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Core.Attributes;
 using CounterStrikeSharp.API.Core.Attributes.Registration;
 using CounterStrikeSharp.API.Modules.Commands;
+using CounterStrikeSharp.API.Modules.Memory;
+using CounterStrikeSharp.API.Modules.Memory.DynamicFunctions;
 using CounterStrikeSharp.API.Modules.Timers;
-using McMaster.NETCore.Plugins;
 using Timer = CounterStrikeSharp.API.Modules.Timers.Timer;
 
 namespace CTSpawnProtection;
 
-[MinimumApiVersion(43)]
+[MinimumApiVersion(110)]
 public class CTSpawnProtection : BasePlugin, IPluginConfig<CTSpawnProtectionConfig>
 {
     public override string ModuleName => "[CT] Spawn protection.";
     public override string ModuleAuthor => "livevilog";
-    public override string ModuleVersion => "1.1.0";
+    public override string ModuleVersion => "1.2.0";
 
     public CTSpawnProtectionConfig Config { get; set; } = new ();
     
-    private readonly Dictionary<CCSPlayerController, bool> _protectedList = new ();
-    private readonly Dictionary<CCSPlayerController, DateTime> _spawnTimings = new ();
+    private readonly Dictionary<uint, bool> _protectedList = new ();
+    private readonly Dictionary<uint, DateTime> _spawnTimings = new ();
     
     private Timer? _clearProtectionTimer;
     
@@ -31,6 +32,8 @@ public class CTSpawnProtection : BasePlugin, IPluginConfig<CTSpawnProtectionConf
         {
             Console.WriteLine("[CTSpawnProtection] Please update your config to version 3.");
         }
+        
+        VirtualFunctions.CBaseEntity_TakeDamageOldFunc.Hook(OnTakeDamage, HookMode.Pre);
         
         if (hotReload)
         {
@@ -48,6 +51,7 @@ public class CTSpawnProtection : BasePlugin, IPluginConfig<CTSpawnProtectionConf
 
     public override void Unload(bool hotReload)
     {
+        VirtualFunctions.CBaseEntity_TakeDamageOldFunc.Unhook(OnTakeDamage, HookMode.Pre);
         _clearProtectionTimer!.Kill();
         Timers.Remove(_clearProtectionTimer);
         _clearProtectionTimer = null;
@@ -66,8 +70,8 @@ public class CTSpawnProtection : BasePlugin, IPluginConfig<CTSpawnProtectionConf
     {
         Utilities.GetPlayers().ForEach(controller =>
         {
-            _protectedList[controller] = true;
-            _spawnTimings[controller] = DateTime.Now;
+            _protectedList[controller.Index] = true;
+            _spawnTimings[controller.Index] = DateTime.Now;
         });
         
         return HookResult.Continue;
@@ -77,8 +81,8 @@ public class CTSpawnProtection : BasePlugin, IPluginConfig<CTSpawnProtectionConf
     {
         Utilities.GetPlayers().ForEach(controller =>
         {
-            _protectedList[controller] = false;
-            _spawnTimings[controller] = DateTime.Now;
+            _protectedList[controller.Index] = false;
+            _spawnTimings[controller.Index] = DateTime.Now;
         });
     }
 
@@ -86,12 +90,12 @@ public class CTSpawnProtection : BasePlugin, IPluginConfig<CTSpawnProtectionConf
     {
         Utilities.GetPlayers().ForEach(controller =>
         {
-            if (!_spawnTimings.TryGetValue(controller, out var time)) 
+            if (!_spawnTimings.TryGetValue(controller.Index, out var time)) 
                 return;
 
-            if (_protectedList[controller] && (DateTime.Now - time).Seconds >= _protectionDuration)
+            if (_protectedList[controller.Index] && (DateTime.Now - time).Seconds >= _protectionDuration)
             {
-                _protectedList[controller] = false;
+                _protectedList[controller.Index] = false;
                 controller.PrintToChat($" {Config.ProtectionEndMessage}");
             }
         });
@@ -101,26 +105,35 @@ public class CTSpawnProtection : BasePlugin, IPluginConfig<CTSpawnProtectionConf
     [GameEventHandler(HookMode.Post)]
     public HookResult OnPlayerSpawn(EventPlayerSpawn @event, GameEventInfo _)
     {
-        _protectedList[@event.Userid] = true;
-        _spawnTimings[@event.Userid] = DateTime.Now;
+        _protectedList[@event.Userid.Index] = true;
+        _spawnTimings[@event.Userid.Index] = DateTime.Now;
+        
+        return HookResult.Continue;
+    }
+
+    private HookResult OnTakeDamage(DynamicHook hook)    
+    {
+        var entindex = hook.GetParam<CEntityInstance>(0).Index;
+       
+        if (entindex == 0)
+            return HookResult.Continue;
+
+        var pawn = Utilities.GetEntityFromIndex<CCSPlayerPawn>((int)entindex);
+        
+        if (pawn.OriginalController.Value is not { } player)
+            return HookResult.Continue;
+
+        if (_protectedList.TryGetValue(player.Index, out var value) && value)
+            hook.GetParam<CTakeDamageInfo>(1).Damage = 0;
         
         return HookResult.Continue;
     }
 
     [GameEventHandler(HookMode.Post)]
-    public HookResult OnPlayerHurt(EventPlayerHurt @event, GameEventInfo _)
-    {
-        if (!_protectedList[@event.Userid]) return HookResult.Continue;
-        
-        @event.Userid.PlayerPawn.Value.Health = Config.PreventiveHealth;
-        
-        return HookResult.Changed;
-    }
-
-    [GameEventHandler(HookMode.Post)]
     public HookResult OnPlayerDisconnect(EventPlayerDisconnect @event, GameEventInfo _)
     {
-        _protectedList.Remove(@event.Userid);
+        _protectedList.Remove(@event.Userid.Index);
+        _spawnTimings.Remove(@event.Userid.Index);
         
         return HookResult.Continue;
     }
@@ -128,7 +141,8 @@ public class CTSpawnProtection : BasePlugin, IPluginConfig<CTSpawnProtectionConf
     [GameEventHandler(HookMode.Post)]
     public HookResult OnPlayerConnectFull(EventPlayerDisconnect @event, GameEventInfo _)
     {
-        _protectedList[@event.Userid] = false;
+        _protectedList[@event.Userid.Index] = false;
+        _spawnTimings[@event.Userid.Index] = DateTime.Now;
         
         return HookResult.Continue;
     }
