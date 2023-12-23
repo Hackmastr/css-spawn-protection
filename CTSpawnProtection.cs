@@ -24,7 +24,7 @@ public class CTSpawnProtection : BasePlugin, IPluginConfig<CTSpawnProtectionConf
     
     private Timer? _clearProtectionTimer;
     
-    private int _protectionDuration = 0;
+    private int _protectionDuration;
 
     public override void Load(bool hotReload)
     {
@@ -120,7 +120,7 @@ public class CTSpawnProtection : BasePlugin, IPluginConfig<CTSpawnProtectionConf
 
         var pawn = Utilities.GetEntityFromIndex<CCSPlayerPawn>((int)entindex);
         
-        if (pawn.OriginalController.Value is not { } player)
+        if (pawn?.OriginalController?.Value is not { } player)
             return HookResult.Continue;
 
         if (_protectedList.TryGetValue(player.Index, out var value) && value)
